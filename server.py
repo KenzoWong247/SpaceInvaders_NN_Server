@@ -12,6 +12,14 @@ class Server:
     clients_close_event = asyncio.Event()
     server_close_complete = asyncio.Event()
     clients = {}
+    server_commands = {
+        "shutdown": shutdown_event,
+        "close_clients": clients_close_event
+    }
+    command_responses = {
+        "shutdown": "Server set to shutdown confirmed",
+        "close_clients": "Clients sent shutdown command"
+    }
 
     def __init__(self):
         atexit.register(self.cleanup)
@@ -22,13 +30,21 @@ class Server:
     def close_server(self):
         self.shutdown_event.set()
 
-    def handle_message(self):
-        pass
+    def handle_message(self, message):
+        # TODO: Handle client commands
+        server_command = self.server_commands.get(message)
+        if server_command:
+            server_command.set()
+            return {'message': self.command_responses[message]}
+        else:
+            print(f'Unknown Command: {message}')
 
-    def handle_data(self):
-        pass
+    def handle_data(self, data):
+        # TODO: Pass Data to Game Agent and receive a game action in return
+       return data
 
     async def send_data(self, data):
+        # TODO: Send data to the client
         pass
 
 
@@ -39,15 +55,20 @@ class Server:
             async for message in websocket:
                 print(f'Client Message: {message}')
 
+
                 try:
                     data =  json.loads(message)
+                    response = self.handle_data(data)
                 except ValueError:
-                    return None
+                    response = self.handle_message(message)
 
+                if response:
+                    await self.send_data(response)
 
         except ConnectionClosedError:
             print(f'Client {client.client_id} disconnected')
         finally:
+            # TODO: Agent cleanup and deletion
             pass
 
     # noinspection PyTypeChecker
