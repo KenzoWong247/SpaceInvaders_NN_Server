@@ -6,6 +6,7 @@ from websockets import serve
 from websockets.exceptions import ConnectionClosedError
 
 from game_agent import GameAgent
+from network_trainer import Trainer
 
 class Server:
     shutdown_event = asyncio.Event()
@@ -21,8 +22,10 @@ class Server:
         "close_clients": "Clients sent shutdown command"
     }
 
-    def __init__(self):
+
+    def __init__(self, trainer: Trainer):
         atexit.register(self.cleanup)
+        self.trainer = trainer
 
     def cleanup(self):
         pass
@@ -39,17 +42,18 @@ class Server:
         else:
             print(f'Unknown Command: {message}')
 
-    def handle_data(self, data):
+    def handle_data(self, client_id, data):
         # TODO: Pass Data to Game Agent and receive a game action in return
-       return data
+        if client_id in self.clients.keys():
+            return self.clients[client_id].get_action(data)
+        else:
+            print(f'Unknown client: {client_id}')
 
-    async def send_data(self, data):
-        # TODO: Send data to the client
-        pass
-
+    async def send_data(self, websocket, data):
+        json_data = json.dumps(data)
 
     async def _handle_data(self, websocket):
-        client = GameAgent()
+        client = GameAgent(self.trainer)
 
         try:
             async for message in websocket:
@@ -58,12 +62,12 @@ class Server:
 
                 try:
                     data =  json.loads(message)
-                    response = self.handle_data(data)
+                    response = self.handle_data(client.client_id, data)
                 except ValueError:
                     response = self.handle_message(message)
 
                 if response:
-                    await self.send_data(response)
+                    await websocket.send(response)
 
         except ConnectionClosedError:
             print(f'Client {client.client_id} disconnected')
